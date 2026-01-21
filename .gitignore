@@ -1,0 +1,18 @@
+# Variables de entorno
+.env
+
+# Configuración real de Odoo (no se sube)
+config/odoo.conf
+
+# Volúmenes locales generados por Docker
+postgres_data/
+odoo_filestore/
+odoo_sessions/
+pgadmin_data/
+
+# Python
+__pycache__/
+*.pyc
+
+# Sistema
+.DS_Store

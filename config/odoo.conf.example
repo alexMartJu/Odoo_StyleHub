@@ -1,0 +1,18 @@
+[options]
+# Base de datos
+db_host = db
+db_port = 5432
+
+# Rutas de addons
+addons_path = /usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons
+
+# Modo desarrollo
+dev_mode = all
+log_level = debug
+workers = 0
+
+# Puerto interno de Odoo
+http_port = 8069
+
+# La contraseña maestra se generará automáticamente
+# admin_passwd =
