@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Action para Estilistas -->
+    <record id="stylehub_stylist_action" model="ir.actions.act_window">
+        <field name="name">Estilistas</field>
+        <field name="res_model">stylehub.stylist</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Vista Lista de Estilistas -->
+    <record id="stylehub_stylist_view_list" model="ir.ui.view">
+        <field name="name">stylehub.stylist.list</field>
+        <field name="model">stylehub.stylist</field>
+        <field name="arch" type="xml">
+            <list string="Estilistas">
+                <field name="name"/>
+                <field name="phone"/>
+                <field name="email"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista Formulario de Estilistas -->
+    <record id="stylehub_stylist_view_form" model="ir.ui.view">
+        <field name="name">stylehub.stylist.form</field>
+        <field name="model">stylehub.stylist</field>
+        <field name="arch" type="xml">
+            <form string="Estilista">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="phone"/>
+                            <field name="email"/>
+                        </group>
+                        <group>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Citas Asignadas">
+                            <field name="appointment_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="partner_id"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vista Búsqueda de Estilistas -->
+    <record id="stylehub_stylist_view_search" model="ir.ui.view">
+        <field name="name">stylehub.stylist.search</field>
+        <field name="model">stylehub.stylist</field>
+        <field name="arch" type="xml">
+            <search string="Estilistas">
+                <field name="name"/>
+                <filter name="active" string="Activos" domain="[('active','=',True)]"/>
+            </search>
+        </field>
+    </record>
+
+</odoo>
