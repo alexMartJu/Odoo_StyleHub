@@ -7,6 +7,7 @@ class StylehubStylist(models.Model):
     _name = "stylehub.stylist"
     _description = "Estilista de Peluquería"
     _order = "name"
+    _inherit = ['image.mixin']
 
     name = fields.Char(string="Nombre", required=True)
     active = fields.Boolean(

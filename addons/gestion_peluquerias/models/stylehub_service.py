@@ -7,6 +7,7 @@ class StylehubService(models.Model):
     _name = "stylehub.service"
     _description = "Servicio de Peluquería"
     _order = "name"
+    _inherit = ['image.mixin']
 
     name = fields.Char(string="Nombre del Servicio", required=True)
     description = fields.Text(string="Descripción")

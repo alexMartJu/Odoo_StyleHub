@@ -29,9 +29,14 @@
         <field name="arch" type="xml">
             <form string="Estilista">
                 <sheet>
+                    <field name="image_1920" widget="image" class="oe_avatar"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Nombre del estilista"/>
+                        </h1>
+                    </div>
                     <group>
                         <group>
-                            <field name="name"/>
                             <field name="phone"/>
                             <field name="email"/>
                         </group>
