@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Menú raíz: StyleHub -->
+    <menuitem id="stylehub_menu_root" name="StyleHub"/>
+
+    <!-- Primer nivel: Agenda -->
+    <menuitem id="stylehub_menu_agenda" name="Agenda" parent="stylehub_menu_root" sequence="10">
+        <menuitem id="stylehub_appointment_menu_action"
+            name="Citas"
+            action="stylehub_appointment_action"
+            sequence="10"/>
+    </menuitem>
+
+    <!-- Primer nivel: Configuración -->
+    <menuitem id="stylehub_menu_config" name="Configuración" parent="stylehub_menu_root" sequence="20">
+        <menuitem id="stylehub_service_menu_action"
+            name="Servicios"
+            action="stylehub_service_action"
+            sequence="10"/>
+        <menuitem id="stylehub_stylist_menu_action"
+            name="Estilistas"
+            action="stylehub_stylist_action"
+            sequence="20"/>
+    </menuitem>
+
+</odoo>

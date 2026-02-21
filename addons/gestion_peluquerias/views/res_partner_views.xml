@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Herencia de la vista formulario de res.partner para mostrar datos VIP y citas -->
+    <record id="res_partner_view_form_inherit_stylehub" model="ir.ui.view">
+        <field name="name">res.partner.view.form.inherit.stylehub</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <!-- Añadir distintivo VIP debajo del campo nombre -->
+            <field name="name" position="after">
+                <div invisible="not is_frequent_client" class="mt-1">
+                    <span class="badge text-bg-warning fs-6">⭐ Cliente VIP</span>
+                    <span class="ms-2 text-muted">
+                        (<field name="appointment_done_count" readonly="1"/> citas realizadas)
+                    </span>
+                </div>
+            </field>
+            <!-- Añadir pestaña con citas del cliente -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Citas en StyleHub">
+                    <group>
+                        <field name="is_frequent_client" readonly="1" string="Cliente Frecuente (VIP)"/>
+                        <field name="appointment_done_count" readonly="1" string="Citas Realizadas"/>
+                    </group>
+                    <field name="appointment_ids" readonly="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="stylist_id"/>
+                            <field name="date_start" string="Inicio"/>
+                            <field name="date_end" string="Fin"/>
+                            <field name="total_amount" string="Total (€)"/>
+                            <field name="state" widget="badge"
+                                decoration-success="state == 'done'"
+                                decoration-info="state == 'confirmed'"
+                                decoration-warning="state == 'draft'"
+                                decoration-danger="state == 'cancelled'"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
