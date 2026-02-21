@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Action para Citas (lista + formulario + calendario) -->
+    <record id="stylehub_appointment_action" model="ir.actions.act_window">
+        <field name="name">Citas</field>
+        <field name="res_model">stylehub.appointment</field>
+        <field name="view_mode">list,form,calendar,kanban</field>
+        <field name="context">{'search_default_not_cancelled': True}</field>
+    </record>
+
+    <!-- Vista Lista de Citas -->
+    <record id="stylehub_appointment_view_list" model="ir.ui.view">
+        <field name="name">stylehub.appointment.list</field>
+        <field name="model">stylehub.appointment</field>
+        <field name="arch" type="xml">
+            <list string="Citas"
+                decoration-success="state == 'confirmed'"
+                decoration-muted="state == 'cancelled'"
+                decoration-bf="state == 'done'">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="stylist_id"/>
+                <field name="date_start" string="Inicio"/>
+                <field name="date_end" string="Fin"/>
+                <field name="total_duration" string="Duración (h)"/>
+                <field name="total_amount" string="Total (€)"/>
+                <field name="state" widget="badge"
+                    decoration-success="state == 'done'"
+                    decoration-info="state == 'confirmed'"
+                    decoration-warning="state == 'draft'"
+                    decoration-danger="state == 'cancelled'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista Formulario de Citas -->
+    <record id="stylehub_appointment_view_form" model="ir.ui.view">
+        <field name="name">stylehub.appointment.form</field>
+        <field name="model">stylehub.appointment</field>
+        <field name="arch" type="xml">
+            <form string="Cita">
+                <header>
+                    <!-- Botones de acción según estado -->
+                    <button name="action_confirm"
+                        string="Confirmar Cita"
+                        type="object"
+                        class="btn-primary"
+                        invisible="state != 'draft'"/>
+                    <button name="action_done"
+                        string="Finalizar Trabajo"
+                        type="object"
+                        class="btn-success"
+                        invisible="state != 'confirmed'"/>
+                    <button name="action_cancel"
+                        string="Cancelar"
+                        type="object"
+                        class="btn-danger"
+                        invisible="state in ('done', 'cancelled')"/>
+                    <button name="action_reset_draft"
+                        string="Restablecer a Borrador"
+                        type="object"
+                        invisible="state != 'cancelled'"/>
+                    <!-- Barra de estado -->
+                    <field name="state" widget="statusbar"
+                        statusbar_visible="draft,confirmed,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Información Principal">
+                            <field name="partner_id"
+                                options="{'no_create': True}"/>
+                            <field name="stylist_id"
+                                options="{'no_create': True}"/>
+                        </group>
+                        <group string="Horario">
+                            <field name="date_start"/>
+                            <field name="date_end" readonly="1"/>
+                            <field name="total_duration" readonly="1" string="Duración Total (h)"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Servicios">
+                            <field name="line_ids"
+                                readonly="state in ('done', 'cancelled')">
+                                <list editable="bottom">
+                                    <field name="service_id"/>
+                                    <field name="duration" string="Duración (h)"/>
+                                    <field name="price_unit" string="Precio (€)"/>
+                                </list>
+                            </field>
+                            <group class="oe_subtotal_footer">
+                                <field name="total_amount"
+                                    readonly="1"
+                                    string="Total a Pagar (€)"
+                                    class="oe_subtotal_footer_separator"/>
+                            </group>
+                        </page>
+                        <page string="Notas Internas">
+                            <field name="notes"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vista Calendario de Citas -->
+    <record id="stylehub_appointment_view_calendar" model="ir.ui.view">
+        <field name="name">stylehub.appointment.calendar</field>
+        <field name="model">stylehub.appointment</field>
+        <field name="arch" type="xml">
+            <calendar string="Agenda de Citas"
+                date_start="date_start"
+                date_stop="date_end"
+                color="stylist_id"
+                event_limit="5"
+                mode="week">
+                <field name="partner_id"/>
+                <field name="stylist_id"/>
+                <field name="state"/>
+            </calendar>
+        </field>
+    </record>
+
+    <!-- Vista Búsqueda de Citas -->
+    <record id="stylehub_appointment_view_search" model="ir.ui.view">
+        <field name="name">stylehub.appointment.search</field>
+        <field name="model">stylehub.appointment</field>
+        <field name="arch" type="xml">
+            <search string="Citas">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="stylist_id"/>
+                <!-- Filtros predefinidos -->
+                <filter name="draft" string="Borrador" domain="[('state','=','draft')]"/>
+                <filter name="confirmed" string="Confirmadas" domain="[('state','=','confirmed')]"/>
+                <filter name="done" string="Realizadas" domain="[('state','=','done')]"/>
+                <filter name="cancelled" string="Canceladas" domain="[('state','=','cancelled')]"/>
+                <filter name="not_cancelled" string="No canceladas" domain="[('state','!=','cancelled')]"/>
+                <separator/>
+                <!-- Agrupaciones -->
+                <filter name="group_state" string="Estado" context="{'group_by': 'state'}"/>
+                <filter name="group_stylist" string="Estilista" context="{'group_by': 'stylist_id'}"/>
+                <filter name="group_partner" string="Cliente" context="{'group_by': 'partner_id'}"/>
+            </search>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Vista Kanban de Citas (agrupada por estado) -->
+    <record id="stylehub_appointment_view_kanban" model="ir.ui.view">
+        <field name="name">stylehub.appointment.kanban</field>
+        <field name="model">stylehub.appointment</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" records_draggable="false">
+
+                <!-- Campos necesarios para QWeb -->
+                <field name="state"/>
+                <field name="partner_id"/>
+                <field name="stylist_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="total_amount"/>
+                <field name="total_duration"/>
+
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_card">
+                            <div class="oe_kanban_content">
+
+                                <!-- Nombre / Referencia -->
+                                <div class="mb-1 fw-bold">
+                                    <field name="name"/>
+                                </div>
+
+                                <!-- Cliente -->
+                                <div>
+                                    <span class="text-muted">Cliente: </span>
+                                    <field name="partner_id"/>
+                                </div>
+
+                                <!-- Estilista -->
+                                <div>
+                                    <span class="text-muted">Estilista: </span>
+                                    <field name="stylist_id"/>
+                                </div>
+
+                                <!-- Horario -->
+                                <div class="mt-1">
+                                    <span class="text-muted">Inicio: </span>
+                                    <field name="date_start" widget="datetime"/>
+                                </div>
+                                <div>
+                                    <span class="text-muted">Fin: </span>
+                                    <field name="date_end" widget="datetime"/>
+                                </div>
+
+                                <!-- Total -->
+                                <div class="mt-1 fw-bold">
+                                    <span class="text-muted">Total: </span>
+                                    <field name="total_amount" widget="monetary"/>
+                                    <span class="text-muted"> | </span>
+                                    <field name="total_duration"/>
+                                    <span class="text-muted"> h</span>
+                                </div>
+
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+</odoo>
