@@ -24,7 +24,9 @@
                 <field name="date_start" string="Inicio"/>
                 <field name="date_end" string="Fin"/>
                 <field name="total_duration" string="Duración (h)"/>
-                <field name="total_amount" string="Total (€)"/>
+                <field name="total_amount" string="Subtotal (€)" optional="hide"/>
+                <field name="discount_amount" string="Dto. VIP (€)" optional="hide"/>
+                <field name="final_amount" string="Total (€)"/>
                 <field name="state" widget="badge"
                     decoration-success="state == 'done'"
                     decoration-info="state == 'confirmed'"
@@ -73,10 +75,15 @@
                     </div>
                     <group>
                         <group string="Información Principal">
-                            <field name="partner_id"
-                                options="{'no_create': True}"/>
-                            <field name="stylist_id"
-                                options="{'no_create': True}"/>
+                            <field name="partner_id" options="{'no_create': True}"/>
+                            <!-- Campo auxiliar necesario para la condición invisible -->
+                            <field name="is_vip_client" invisible="1"/>
+                            <!-- Insignia VIP visible cuando el cliente es frecuente -->
+                            <div colspan="2" invisible="not is_vip_client" class="mt-1">
+                                <span class="badge text-bg-warning fs-6">⭐ VIP — Descuento 5%</span>
+                            </div>
+                            <!-- Estilista en nueva línea debajo de la insignia -->
+                            <field name="stylist_id" options="{'no_create': True}"/>
                         </group>
                         <group string="Horario">
                             <field name="date_start"/>
@@ -96,6 +103,13 @@
                             </field>
                             <group class="oe_subtotal_footer">
                                 <field name="total_amount"
+                                    readonly="1"
+                                    string="Subtotal (€)"/>
+                                <field name="discount_amount"
+                                    readonly="1"
+                                    string="Descuento VIP 5% (€)"
+                                    invisible="not is_vip_client"/>
+                                <field name="final_amount"
                                     readonly="1"
                                     string="Total a Pagar (€)"
                                     class="oe_subtotal_footer_separator"/>

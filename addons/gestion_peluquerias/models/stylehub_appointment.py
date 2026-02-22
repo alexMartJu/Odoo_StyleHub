@@ -52,9 +52,30 @@ class StylehubAppointment(models.Model):
         store=True,
     )
     total_amount = fields.Float(
-        string="Total a Pagar (€)",
+        string="Subtotal (€)",
         compute="_compute_totals",
         store=True,
+    )
+
+    # -------------------------------------------------------------------------
+    # Descuento VIP
+    # -------------------------------------------------------------------------
+    is_vip_client = fields.Boolean(
+        string="Cliente VIP",
+        related='partner_id.is_frequent_client',
+        store=False,
+    )
+    discount_amount = fields.Float(
+        string="Descuento VIP 5% (€)",
+        compute="_compute_discount",
+        store=True,
+        help="Descuento del 5% aplicado automáticamente a clientes frecuentes (VIP).",
+    )
+    final_amount = fields.Float(
+        string="Total a Pagar (€)",
+        compute="_compute_discount",
+        store=True,
+        help="Total a pagar tras aplicar el descuento VIP si corresponde.",
     )
 
     # -------------------------------------------------------------------------
@@ -104,6 +125,29 @@ class StylehubAppointment(models.Model):
                 rec.date_end = rec.date_start + timedelta(hours=rec.total_duration)
             else:
                 rec.date_end = rec.date_start
+
+    @api.depends('total_amount', 'partner_id.appointment_ids.state', 'date_start')
+    def _compute_discount(self):
+        Appointment = self.env['stylehub.appointment']
+        for rec in self:
+            applies_discount = False
+            if rec.partner_id and rec.date_start:
+                # Contamos cuántas citas 'Realizadas' tenía el cliente
+                # con fecha de inicio ANTERIOR a esta cita concreta.
+                # El descuento se aplica a partir de la 6ª cita,
+                # es decir, cuando ya tiene 5 o más realizadas previas.
+                prior_done = Appointment.search_count([
+                    ('partner_id', '=', rec.partner_id.id),
+                    ('state', '=', 'done'),
+                    ('date_start', '<', rec.date_start),
+                ])
+                applies_discount = prior_done >= 5
+
+            if applies_discount:
+                rec.discount_amount = rec.total_amount * 0.05
+            else:
+                rec.discount_amount = 0.0
+            rec.final_amount = rec.total_amount - rec.discount_amount
 
     # -------------------------------------------------------------------------
     # Restricciones / Constraints

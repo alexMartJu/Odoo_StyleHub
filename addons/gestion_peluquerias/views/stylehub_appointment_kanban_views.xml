@@ -15,6 +15,9 @@
                 <field name="date_start"/>
                 <field name="date_end"/>
                 <field name="total_amount"/>
+                <field name="discount_amount"/>
+                <field name="final_amount"/>
+                <field name="is_vip_client"/>
                 <field name="total_duration"/>
 
                 <templates>
@@ -25,6 +28,9 @@
                                 <!-- Nombre / Referencia -->
                                 <div class="mb-1 fw-bold">
                                     <field name="name"/>
+                                    <!-- Insignia VIP -->
+                                    <span t-if="record.is_vip_client.raw_value"
+                                        class="badge text-bg-warning ms-2">⭐ VIP</span>
                                 </div>
 
                                 <!-- Cliente -->
@@ -52,7 +58,10 @@
                                 <!-- Total -->
                                 <div class="mt-1 fw-bold">
                                     <span class="text-muted">Total: </span>
-                                    <field name="total_amount" widget="monetary"/>
+                                    <field name="final_amount" widget="monetary"/>
+                                    <t t-if="record.is_vip_client.raw_value">
+                                        <span class="text-success ms-1">(Dto. VIP: <field name="discount_amount" widget="monetary"/>)</span>
+                                    </t>
                                     <span class="text-muted"> | </span>
                                     <field name="total_duration"/>
                                     <span class="text-muted"> h</span>
