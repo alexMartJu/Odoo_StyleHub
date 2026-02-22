@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 
 
 class ResPartner(models.Model):
@@ -36,3 +37,21 @@ class ResPartner(models.Model):
             )
             partner.appointment_done_count = done_count
             partner.is_frequent_client = done_count > 5
+
+    def action_archive(self):
+        for partner in self:
+            active_appointments = partner.appointment_ids.filtered(
+                lambda a: a.state in ('draft', 'confirmed')
+            )
+            if active_appointments:
+                raise UserError(
+                    "No se puede archivar al cliente '%s' porque tiene "
+                    "%d cita(s) en curso (Borrador o Confirmada):\n%s\n\n"
+                    "Cancela esas citas antes de archivar al cliente."
+                    % (
+                        partner.name,
+                        len(active_appointments),
+                        '\n'.join('  - ' + a.name for a in active_appointments),
+                    )
+                )
+        return super().action_archive()

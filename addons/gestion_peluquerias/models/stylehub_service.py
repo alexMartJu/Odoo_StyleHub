@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import fields, models
+from odoo.exceptions import UserError
 
 
 class StylehubService(models.Model):
@@ -32,3 +33,23 @@ class StylehubService(models.Model):
         'UNIQUE(name)',
         'Ya existe un servicio con ese nombre.',
     )
+
+    def action_archive(self):
+        for rec in self:
+            active_lines = self.env['stylehub.appointment.line'].search([
+                ('service_id', '=', rec.id),
+                ('appointment_id.state', 'in', ('draft', 'confirmed')),
+            ])
+            if active_lines:
+                appointments = active_lines.mapped('appointment_id')
+                raise UserError(
+                    "No se puede archivar el servicio '%s' porque está siendo "
+                    "utilizado en %d cita(s) en curso (Borrador o Confirmada):\n%s\n\n"
+                    "Cancela o finaliza esas citas antes de archivar el servicio."
+                    % (
+                        rec.name,
+                        len(appointments),
+                        '\n'.join('  - ' + a.name for a in appointments),
+                    )
+                )
+        return super().action_archive()

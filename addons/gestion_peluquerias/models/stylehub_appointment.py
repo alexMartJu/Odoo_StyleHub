@@ -166,6 +166,35 @@ class StylehubAppointment(models.Model):
     # -------------------------------------------------------------------------
     # Restricciones / Constraints
     # -------------------------------------------------------------------------
+    @api.constrains('date_start')
+    def _check_date_start_not_in_past(self):
+        """
+        No se puede crear ni modificar una cita programada (borrador o confirmada)
+        con fecha y hora de inicio en el pasado.
+        Las citas ya realizadas o canceladas quedan exentas de esta regla.
+        """
+        now = fields.Datetime.now()
+        for rec in self:
+            if rec.state in ('draft', 'confirmed') and rec.date_start and rec.date_start < now:
+                start_local = fields.Datetime.context_timestamp(rec, rec.date_start)
+                raise ValidationError(
+                    "No se puede programar una cita en el pasado.\n\n"
+                    "La fecha y hora de inicio seleccionada (%s) ya ha pasado.\n"
+                    "Por favor, elige una fecha y hora futura."
+                    % start_local.strftime('%d/%m/%Y %H:%M')
+                )
+
+    @api.constrains('line_ids')
+    def _check_has_services(self):
+        """Una cita debe tener al menos un servicio."""
+        for rec in self:
+            if not rec.line_ids:
+                raise ValidationError(
+                    "La cita '%s' no tiene ningún servicio seleccionado. "
+                    "Añade al menos un servicio antes de guardar."
+                    % rec.name
+                )
+
     @api.constrains('stylist_id', 'date_start', 'date_end', 'state')
     def _check_stylist_overlap(self):
         for rec in self:
@@ -326,16 +355,9 @@ class StylehubAppointment(models.Model):
 
     def action_cancel(self):
         for rec in self:
-            if rec.state == 'done':
-                raise UserError("No se puede cancelar una cita ya realizada.")
+            if rec.state in ('done', 'cancelled'):
+                raise UserError("No se puede cancelar una cita ya realizada o cancelada.")
             rec.state = 'cancelled'
-        return True
-
-    def action_reset_draft(self):
-        for rec in self:
-            if rec.state != 'cancelled':
-                raise UserError("Solo se puede restablecer a borrador una cita cancelada.")
-            rec.state = 'draft'
         return True
 
 

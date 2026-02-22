@@ -59,10 +59,6 @@
                         type="object"
                         class="btn-danger"
                         invisible="state in ('done', 'cancelled')"/>
-                    <button name="action_reset_draft"
-                        string="Restablecer a Borrador"
-                        type="object"
-                        invisible="state != 'cancelled'"/>
                     <!-- Barra de estado -->
                     <field name="state" widget="statusbar"
                         statusbar_visible="draft,confirmed,done"/>
@@ -75,7 +71,7 @@
                     </div>
                     <group>
                         <group string="Información Principal">
-                            <field name="partner_id" options="{'no_create': True}"/>
+                            <field name="partner_id" options="{'no_create': True}" readonly="state != 'draft'"/>
                             <!-- Campo auxiliar necesario para la condición invisible -->
                             <field name="is_vip_client" invisible="1"/>
                             <!-- Insignia VIP visible cuando el cliente es frecuente -->
@@ -83,10 +79,10 @@
                                 <span class="badge text-bg-warning fs-6">⭐ VIP — Descuento 5%</span>
                             </div>
                             <!-- Estilista en nueva línea debajo de la insignia -->
-                            <field name="stylist_id" options="{'no_create': True}"/>
+                            <field name="stylist_id" options="{'no_create': True}" readonly="state != 'draft'"/>
                         </group>
                         <group string="Horario">
-                            <field name="date_start"/>
+                            <field name="date_start" readonly="state != 'draft'"/>
                             <field name="date_end" readonly="1"/>
                             <field name="total_duration" readonly="1" string="Duración Total (h)"/>
                         </group>
@@ -94,7 +90,7 @@
                     <notebook>
                         <page string="Servicios">
                             <field name="line_ids"
-                                readonly="state in ('done', 'cancelled')">
+                                readonly="state != 'draft'">
                                 <list editable="bottom">
                                     <field name="service_id"/>
                                     <field name="duration" string="Duración (h)"/>
