@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Action para el Horario (singleton: abre directamente el formulario) -->
+    <record id="stylehub_schedule_action" model="ir.actions.act_window">
+        <field name="name">Horario de la Peluquería</field>
+        <field name="res_model">stylehub.schedule</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Vista Lista de Horario (solo verá 0 ó 1 registro) -->
+    <record id="stylehub_schedule_view_list" model="ir.ui.view">
+        <field name="name">stylehub.schedule.list</field>
+        <field name="model">stylehub.schedule</field>
+        <field name="arch" type="xml">
+            <list string="Horario" create="true" delete="false">
+                <field name="name"/>
+                <field name="weekday_morning_open" string="Apertura mañana (L-V)"/>
+                <field name="weekday_morning_close" string="Cierre mañana (L-V)"/>
+                <field name="weekday_afternoon_open" string="Apertura tarde (L-V)"/>
+                <field name="weekday_afternoon_close" string="Cierre tarde (L-V)"/>
+                <field name="saturday_active" string="Abre sábado"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista Formulario del Horario -->
+    <record id="stylehub_schedule_view_form" model="ir.ui.view">
+        <field name="name">stylehub.schedule.form</field>
+        <field name="model">stylehub.schedule</field>
+        <field name="arch" type="xml">
+            <form string="Configuración de Horario">
+                <sheet>
+
+                    <!-- Aviso de solo lectura cuando hay citas activas -->
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not has_active_appointments">
+                        <strong>⚠️ Edición bloqueada.</strong>
+                        Existen citas en estado <em>Borrador</em> o
+                        <em>Confirmada</em>. Para poder modificar el horario,
+                        cancela o finaliza todas las citas activas primero.
+                    </div>
+
+                    <!-- Aviso informativo de formato decimal -->
+                    <div class="alert alert-info" role="alert">
+                        <strong>ℹ️ Formato de horas:</strong>
+                        Introduce las horas en formato decimal.
+                        Ejemplos: <strong>8.0</strong> = 08:00 ·
+                        <strong>9.5</strong> = 09:30 ·
+                        <strong>13.5</strong> = 13:30 ·
+                        <strong>16.75</strong> = 16:45 ·
+                        <strong>20.5</strong> = 20:30.
+                        Apertura mínima: <strong>8.0</strong> (08:00) —
+                        Cierre máximo: <strong>22.0</strong> (22:00).
+                    </div>
+
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"
+                                   readonly="has_active_appointments"/>
+                        </h1>
+                    </div>
+
+                    <notebook>
+
+                        <!-- ── Lunes a Viernes ── -->
+                        <page string="Lunes a Viernes">
+                            <group string="Turno de Mañana (Lunes a Viernes)">
+                                <group>
+                                    <field name="weekday_morning_open"
+                                           readonly="has_active_appointments"/>
+                                </group>
+                                <group>
+                                    <field name="weekday_morning_close"
+                                           readonly="has_active_appointments"/>
+                                </group>
+                            </group>
+                            <group string="Turno de Tarde (Lunes a Viernes)">
+                                <group>
+                                    <field name="weekday_afternoon_open"
+                                           readonly="has_active_appointments"/>
+                                </group>
+                                <group>
+                                    <field name="weekday_afternoon_close"
+                                           readonly="has_active_appointments"/>
+                                </group>
+                            </group>
+                            <group string="ℹ️ Horario vigente (L-V)">
+                                <div class="text-muted" style="padding: 4px 0;">
+                                    El mismo horario se aplica a
+                                    <strong>lunes, martes, miércoles, jueves y viernes</strong>.
+                                </div>
+                            </group>
+                        </page>
+
+                        <!-- ── Sábado ── -->
+                        <page string="Sábado">
+                            <group>
+                                <field name="saturday_active"
+                                       readonly="has_active_appointments"/>
+                            </group>
+
+                            <group string="Turno de Mañana (Sábado)"
+                                   invisible="not saturday_active">
+                                <group>
+                                    <field name="saturday_morning_open"
+                                           readonly="has_active_appointments"/>
+                                </group>
+                                <group>
+                                    <field name="saturday_morning_close"
+                                           readonly="has_active_appointments"/>
+                                </group>
+                            </group>
+
+                            <group invisible="not saturday_active">
+                                <field name="saturday_afternoon_active"
+                                       readonly="has_active_appointments"/>
+                            </group>
+
+                            <group string="Turno de Tarde (Sábado)"
+                                   invisible="not saturday_active or not saturday_afternoon_active">
+                                <group>
+                                    <field name="saturday_afternoon_open"
+                                           readonly="has_active_appointments"/>
+                                </group>
+                                <group>
+                                    <field name="saturday_afternoon_close"
+                                           readonly="has_active_appointments"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- ── Domingo ── -->
+                        <page string="Domingo">
+                            <group>
+                                <div class="text-muted" style="padding: 8px 0;">
+                                    <strong>🔒 Domingo: cerrado.</strong>
+                                    La peluquería no trabaja los domingos.
+                                    Esta configuración no es editable.
+                                </div>
+                            </group>
+                        </page>
+
+                    </notebook>
+
+                    <!-- Campo oculto necesario para el invisible del formulario -->
+                    <field name="has_active_appointments" invisible="1"/>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+</odoo>

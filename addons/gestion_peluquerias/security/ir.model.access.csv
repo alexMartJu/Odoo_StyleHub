@@ -1,5 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_stylehub_service,access_stylehub_service,model_stylehub_service,base.group_user,1,1,1,1
 access_stylehub_stylist,access_stylehub_stylist,model_stylehub_stylist,base.group_user,1,1,1,1
+access_stylehub_schedule,access_stylehub_schedule,model_stylehub_schedule,base.group_user,1,1,1,1
 access_stylehub_appointment,access_stylehub_appointment,model_stylehub_appointment,base.group_user,1,1,1,1
 access_stylehub_appointment_line,access_stylehub_appointment_line,model_stylehub_appointment_line,base.group_user,1,1,1,1

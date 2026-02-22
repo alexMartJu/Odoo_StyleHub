@@ -31,6 +31,7 @@ Funcionalidades
         'security/ir.model.access.csv',
         'views/stylehub_service_views.xml',
         'views/stylehub_stylist_views.xml',
+        'views/stylehub_schedule_views.xml',
         'views/stylehub_appointment_views.xml',
         'views/stylehub_appointment_kanban_views.xml',
         'views/res_partner_views.xml',

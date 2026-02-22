@@ -22,6 +22,10 @@
             name="Estilistas"
             action="stylehub_stylist_action"
             sequence="20"/>
+        <menuitem id="stylehub_schedule_menu_action"
+            name="Horario"
+            action="stylehub_schedule_action"
+            sequence="30"/>
     </menuitem>
 
 </odoo>

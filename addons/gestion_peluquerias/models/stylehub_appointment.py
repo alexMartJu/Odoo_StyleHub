@@ -5,6 +5,20 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 
+def _float_to_time_str(value):
+    """Convierte un float de horas (ej: 9.5) a cadena 'HH:MM' (ej: '09:30')."""
+    hours = int(value)
+    minutes = round((value % 1) * 60)
+    return "%02d:%02d" % (hours, minutes)
+
+
+def _make_time(dt, float_hours):
+    """Devuelve un datetime con la hora indicada por float_hours sobre la fecha de dt."""
+    hours = int(float_hours)
+    minutes = round((float_hours % 1) * 60)
+    return dt.replace(hour=hours, minute=minutes, second=0, microsecond=0)
+
+
 class StylehubAppointment(models.Model):
     _name = "stylehub.appointment"
     _description = "Cita de Peluquería"
@@ -186,64 +200,107 @@ class StylehubAppointment(models.Model):
     @api.constrains('date_start', 'date_end')
     def _check_business_hours(self):
         """
-        Valida que la cita esté dentro del horario comercial de StyleHub:
-          - Lunes a Viernes: 9:30 - 13:30 y 16:30 - 20:30
-          - Sábado:          9:30 - 14:00
-          - Domingo:         cerrado
-        Los Datetime se almacenan en UTC en Odoo; aquí trabajamos directamente
-        con los valores introducidos (sin conversión de zona horaria) para
-        mantener la simplicidad del módulo.
+        Valida que la cita esté dentro del horario comercial configurado en
+        stylehub.schedule. Si no existe ninguna configuración de horario,
+        la validación se omite para no bloquear el sistema.
         """
-        # Días de la semana (0 = Lunes, 6 = Domingo)
         _WEEKDAY_NAMES = {
             0: 'lunes', 1: 'martes', 2: 'miércoles',
             3: 'jueves', 4: 'viernes', 5: 'sábado', 6: 'domingo',
         }
 
+        # Si no hay horario configurado, bloquear la creación de citas
+        schedule = self.env['stylehub.schedule'].search([], limit=1)
+        if not schedule:
+            raise ValidationError(
+                "⚠️ No se ha configurado el horario de la peluquería.\n\n"
+                "Antes de crear citas, ve a "
+                "StyleHub → Configuración → Horario "
+                "y crea la configuración de horario. "
+                "Las citas solo pueden crearse dentro del horario definido."
+            )
+
         for rec in self:
             if not rec.date_start or not rec.date_end:
                 continue
 
-            # ── Convertir UTC --> hora lcoal del usuario ──────────────────────
+            # Convertir UTC → hora local del usuario
             start = fields.Datetime.context_timestamp(rec, rec.date_start)
-            end = fields.Datetime.context_timestamp(rec, rec.date_end)
+            end   = fields.Datetime.context_timestamp(rec, rec.date_end)
             weekday = start.weekday()  # 0 = Lunes, 6 = Domingo
 
-            # ── Domingo: cerrado ──────────────────────────────────────────────
+            # ── Domingo: siempre cerrado ──────────────────────────────────────
             if weekday == 6:
                 raise ValidationError(
-                    "StyleHub no abre los domingos. "
+                    "La peluquería no abre los domingos. "
                     "Por favor, elige otro día para la cita."
                 )
 
-            # ── Sábado: 9:30 – 14:00 ─────────────────────────────────────────
+            # ── Sábado ───────────────────────────────────────────────────────
             if weekday == 5:
-                open_sat = start.replace(hour=9,  minute=30, second=0, microsecond=0)
-                close_sat = start.replace(hour=14, minute=0,  second=0, microsecond=0)
-                if start < open_sat or end > close_sat:
+                if not schedule.saturday_active:
                     raise ValidationError(
-                        "StyleHub solo abre los sábados de 9:30 a 14:00. "
-                        "La cita solicitada (%s – %s) está fuera de este horario."
-                        % (start.strftime('%H:%M'), end.strftime('%H:%M'))
+                        "La peluquería no abre los sábados según la "
+                        "configuración de horario actual."
                     )
+                open_sat_morn  = _make_time(start, schedule.saturday_morning_open)
+                close_sat_morn = _make_time(start, schedule.saturday_morning_close)
+                in_sat_morning = open_sat_morn <= start and end <= close_sat_morn
+
+                in_sat_afternoon = False
+                if schedule.saturday_afternoon_active:
+                    open_sat_aft  = _make_time(start, schedule.saturday_afternoon_open)
+                    close_sat_aft = _make_time(start, schedule.saturday_afternoon_close)
+                    in_sat_afternoon = open_sat_aft <= start and end <= close_sat_aft
+
+                if not in_sat_morning and not in_sat_afternoon:
+                    if schedule.saturday_afternoon_active:
+                        raise ValidationError(
+                            "El sábado la peluquería abre de %s a %s "
+                            "y de %s a %s. "
+                            "La cita solicitada (%s – %s) está fuera de este horario."
+                            % (
+                                _float_to_time_str(schedule.saturday_morning_open),
+                                _float_to_time_str(schedule.saturday_morning_close),
+                                _float_to_time_str(schedule.saturday_afternoon_open),
+                                _float_to_time_str(schedule.saturday_afternoon_close),
+                                start.strftime('%H:%M'),
+                                end.strftime('%H:%M'),
+                            )
+                        )
+                    else:
+                        raise ValidationError(
+                            "El sábado la peluquería abre de %s a %s. "
+                            "La cita solicitada (%s – %s) está fuera de este horario."
+                            % (
+                                _float_to_time_str(schedule.saturday_morning_open),
+                                _float_to_time_str(schedule.saturday_morning_close),
+                                start.strftime('%H:%M'),
+                                end.strftime('%H:%M'),
+                            )
+                        )
                 continue
 
-            # ── Lunes a Viernes: 9:30 – 13:30 y 16:30 – 20:30 ───────────────
-            open_morning    = start.replace(hour=9,  minute=30, second=0, microsecond=0)
-            close_morning   = start.replace(hour=13, minute=30, second=0, microsecond=0)
-            open_afternoon  = start.replace(hour=16, minute=30, second=0, microsecond=0)
-            close_afternoon = start.replace(hour=20, minute=30, second=0, microsecond=0)
+            # ── Lunes a Viernes ───────────────────────────────────────────────
+            open_morning    = _make_time(start, schedule.weekday_morning_open)
+            close_morning   = _make_time(start, schedule.weekday_morning_close)
+            open_afternoon  = _make_time(start, schedule.weekday_afternoon_open)
+            close_afternoon = _make_time(start, schedule.weekday_afternoon_close)
 
             in_morning   = open_morning   <= start and end <= close_morning
             in_afternoon = open_afternoon <= start and end <= close_afternoon
 
             if not in_morning and not in_afternoon:
                 raise ValidationError(
-                    "De lunes a viernes StyleHub abre de 9:30 a 13:30 "
-                    "y de 16:30 a 20:30. "
+                    "De lunes a viernes la peluquería abre de %s a %s "
+                    "y de %s a %s. "
                     "La cita del %s (%s – %s) cae fuera del horario "
                     "comercial o se solapa con el descanso de mediodía."
                     % (
+                        _float_to_time_str(schedule.weekday_morning_open),
+                        _float_to_time_str(schedule.weekday_morning_close),
+                        _float_to_time_str(schedule.weekday_afternoon_open),
+                        _float_to_time_str(schedule.weekday_afternoon_close),
                         _WEEKDAY_NAMES[weekday],
                         start.strftime('%H:%M'),
                         end.strftime('%H:%M'),
