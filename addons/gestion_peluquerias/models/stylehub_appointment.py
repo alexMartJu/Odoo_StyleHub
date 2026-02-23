@@ -1,5 +1,28 @@
 # -*- coding: utf-8 -*-
 
+# =============================================================================
+# MODELOS: stylehub.appointment y stylehub.appointment.line
+# =============================================================================
+# stylehub.appointment
+#   Representa una cita de cliente en la peluquería. Es el núcleo del módulo.
+#   Cada cita tiene un cliente, un estilista, una fecha/hora de inicio y
+#   una o varias líneas de servicio.
+#
+# stylehub.appointment.line
+#   Cada línea corresponde a un servicio incluido en la cita (corte, tinte…).
+#   La suma de las duraciones de las líneas determina la hora de fin de la cita.
+#
+# FLUJO DE ESTADOS:
+#   Borrador (draft) → Confirmada (confirmed) → Realizada (done)
+#                                             ↘ Cancelada (cancelled)
+#
+# VALIDACIONES CLAVE:
+#   - Anti-solape: el mismo estilista no puede tener dos citas solapadas.
+#   - Horario comercial: las citas deben caber dentro del horario configurado.
+#   - No citas en el pasado (para estados activos).
+#   - Al menos un servicio por cita.
+# =============================================================================
+
 from datetime import timedelta
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
@@ -22,11 +45,13 @@ def _make_time(dt, float_hours):
 class StylehubAppointment(models.Model):
     _name = "stylehub.appointment"
     _description = "Cita de Peluquería"
+    # Las citas más recientes aparecen primero en los listados
     _order = "date_start desc"
 
     # -------------------------------------------------------------------------
     # Campos básicos
     # -------------------------------------------------------------------------
+    # Referencia única generada automáticamente: "Cita - Nombre - DD/MM/YYYY HH:MM"
     name = fields.Char(
         string="Referencia",
         compute="_compute_name",
@@ -37,11 +62,14 @@ class StylehubAppointment(models.Model):
     )
     stylist_id = fields.Many2one(
         'stylehub.stylist', string="Estilista", required=True,
+        # Solo muestra estilistas activos en el selector del formulario
         domain=[('active', '=', True)],
     )
     date_start = fields.Datetime(
         string="Fecha y Hora de Inicio", required=True,
     )
+    # La hora de fin NO se introduce manualmente; se calcula sumando
+    # las duraciones de todos los servicios de la cita.
     date_end = fields.Datetime(
         string="Fecha y Hora de Fin",
         compute="_compute_date_end",
@@ -53,6 +81,8 @@ class StylehubAppointment(models.Model):
     # -------------------------------------------------------------------------
     # Líneas de servicios
     # -------------------------------------------------------------------------
+    # One2many: cada cita puede tener múltiples servicios (corte + tinte +…).
+    # La suma de sus duraciones y precios calcula los totales de la cita.
     line_ids = fields.One2many(
         'stylehub.appointment.line', 'appointment_id', string="Servicios",
     )
@@ -60,6 +90,8 @@ class StylehubAppointment(models.Model):
     # -------------------------------------------------------------------------
     # Campos computados de totales
     # -------------------------------------------------------------------------
+    # Ambos campos se recalculan automáticamente cuando cambia cualquier
+    # línea de servicio (duración o precio).
     total_duration = fields.Float(
         string="Duración Total (horas)",
         compute="_compute_totals",
@@ -74,11 +106,15 @@ class StylehubAppointment(models.Model):
     # -------------------------------------------------------------------------
     # Descuento VIP
     # -------------------------------------------------------------------------
+    # Campo relacionado: obtiene el valor de is_frequent_client del cliente
+    # sin necesitar cálculo adicional. store=False porque es solo informativo.
     is_vip_client = fields.Boolean(
         string="Cliente VIP",
         related='partner_id.is_frequent_client',
         store=False,
     )
+    # Descuento del 5% aplicado si el cliente ya tenía 5+ citas realizadas
+    # con fecha ANTERIOR a ésta (el descuento se aplica desde la 6ª cita).
     discount_amount = fields.Float(
         string="Descuento VIP 5% (€)",
         compute="_compute_discount",
@@ -95,6 +131,8 @@ class StylehubAppointment(models.Model):
     # -------------------------------------------------------------------------
     # Estado / flujo de trabajo
     # -------------------------------------------------------------------------
+    # Máquina de estados con 4 valores posibles.
+    # copy=False: al duplicar una cita el estado siempre empieza en 'draft'.
     state = fields.Selection(
         [
             ('draft', 'Borrador'),
@@ -113,6 +151,13 @@ class StylehubAppointment(models.Model):
     # -------------------------------------------------------------------------
     @api.depends('partner_id', 'date_start')
     def _compute_name(self):
+        """
+        Genera automáticamente la referencia de la cita con el formato:
+        "Cita - <nombre del cliente> - <fecha y hora local>"
+
+        Usa context_timestamp() para convertir la fecha UTC almacenada en
+        PostgreSQL a la hora local del usuario, evitando mostrar UTC en el UI.
+        """
         for rec in self:
             if rec.partner_id and rec.date_start:
                 # Convertir UTC → hora local del usuario antes de formatear
@@ -128,12 +173,22 @@ class StylehubAppointment(models.Model):
 
     @api.depends('line_ids.duration', 'line_ids.price_unit')
     def _compute_totals(self):
+        """
+        Suma la duración (horas) y el precio de todas las líneas de servicio.
+        Se recalcula cada vez que se añade, edita o elimina una línea.
+        """
         for rec in self:
             rec.total_duration = sum(rec.line_ids.mapped('duration'))
             rec.total_amount = sum(rec.line_ids.mapped('price_unit'))
 
     @api.depends('date_start', 'total_duration')
     def _compute_date_end(self):
+        """
+        Calcula la fecha y hora de fin sumando la duración total a la de inicio.
+        Si no hay servicios, date_end es igual a date_start.
+        Este campo es el que usa la vista de Calendario para dibujar el bloque
+        de la cita con la longitud correcta.
+        """
         for rec in self:
             if rec.date_start and rec.total_duration:
                 rec.date_end = rec.date_start + timedelta(hours=rec.total_duration)
@@ -142,6 +197,15 @@ class StylehubAppointment(models.Model):
 
     @api.depends('total_amount', 'partner_id.appointment_ids.state', 'date_start')
     def _compute_discount(self):
+        """
+        Calcula el descuento VIP (5%) y el importe final.
+
+        Lógica de descuento:
+          - El cliente debe tener 5 o más citas 'Realizadas' (done)
+            con fecha de inicio ANTERIOR a la cita actual.
+          - Esto asegura que el descuento se aplica a partir de la 6ª cita,
+            no retroactivamente sobre citas anteriores.
+        """
         Appointment = self.env['stylehub.appointment']
         for rec in self:
             applies_discount = False
@@ -195,15 +259,26 @@ class StylehubAppointment(models.Model):
                     % rec.name
                 )
 
-    @api.constrains('stylist_id', 'date_start', 'date_end', 'state')
+    @api.constrains('stylist_id', 'date_start', 'date_end', 'state', 'line_ids')
     def _check_stylist_overlap(self):
+        """
+        Impide guardar una cita si el estilista ya tiene otra cita que se
+        solapa en el mismo rango de tiempo.
+
+        Algoritmo de detección de solapamiento:
+          Dos intervalos [A_start, A_end) y [B_start, B_end) se solapan si:
+            A_start < B_end  AND  A_end > B_start
+          Esta es la condición estándar para detectar solapamiento de intervalos.
+        """
         for rec in self:
             # Las citas canceladas no bloquean la agenda
             if rec.state == 'cancelled':
                 continue
             if not rec.stylist_id or not rec.date_start or not rec.date_end:
                 continue
-            # Buscar citas del mismo estilista que se solapen en horario
+            # Buscar citas del mismo estilista que se solapen en horario.
+            # El dominio usa la fórmula de solapamiento de intervalos:
+            # date_start < rec.date_end  AND  date_end > rec.date_start
             domain = [
                 ('stylist_id', '=', rec.stylist_id.id),
                 ('state', '!=', 'cancelled'),
@@ -226,7 +301,7 @@ class StylehubAppointment(models.Model):
                     )
                 )
 
-    @api.constrains('date_start', 'date_end')
+    @api.constrains('date_start', 'date_end', 'line_ids')
     def _check_business_hours(self):
         """
         Valida que la cita esté dentro del horario comercial configurado en
@@ -339,7 +414,11 @@ class StylehubAppointment(models.Model):
     # -------------------------------------------------------------------------
     # Botones de acción / flujo de estados
     # -------------------------------------------------------------------------
+    # Los métodos públicos (sin prefijo _) pueden ser llamados desde botones
+    # en las vistas XML mediante type="object".
+    # Iterar sobre 'self' permite que el botón funcione también en modo lista.
     def action_confirm(self):
+        """Pasa la cita de 'Borrador' a 'Confirmada'."""
         for rec in self:
             if rec.state != 'draft':
                 raise UserError("Solo se pueden confirmar citas en estado 'Borrador'.")
@@ -347,6 +426,7 @@ class StylehubAppointment(models.Model):
         return True
 
     def action_done(self):
+        """Pasa la cita de 'Confirmada' a 'Realizada'."""
         for rec in self:
             if rec.state != 'confirmed':
                 raise UserError("Solo se pueden finalizar citas en estado 'Confirmada'.")
@@ -354,6 +434,7 @@ class StylehubAppointment(models.Model):
         return True
 
     def action_cancel(self):
+        """Cancela la cita. No se puede cancelar si ya está realizada o cancelada."""
         for rec in self:
             if rec.state in ('done', 'cancelled'):
                 raise UserError("No se puede cancelar una cita ya realizada o cancelada.")
@@ -362,20 +443,33 @@ class StylehubAppointment(models.Model):
 
 
 class StylehubAppointmentLine(models.Model):
+    """
+    Cada registro representa un servicio dentro de una cita.
+    Ejemplos: Corte, Tinte, Peinado…
+
+    La duración y el precio se copian automáticamente del servicio
+    seleccionado (via onchange), pero pueden editarse manualmente.
+    La suma de todas las líneas determina la duración total y el
+    subtotal de la cita padre.
+    """
     _name = "stylehub.appointment.line"
     _description = "Línea de Servicio de Cita"
-    _order = "id"
+    _order = "id"   # Mantener el orden de inserción
 
+    # ondelete='cascade': si se borra la cita, se borran también sus líneas
     appointment_id = fields.Many2one(
         'stylehub.appointment', string="Cita", required=True, ondelete='cascade',
     )
     service_id = fields.Many2one(
         'stylehub.service', string="Servicio", required=True,
     )
+    # Precio editable: se rellena automáticamente con el precio del servicio,
+    # pero la gerente puede modificarlo en el momento (ej: recargo por volumen)
     price_unit = fields.Float(
         string="Precio (€)",
         help="Precio editable. Se rellena automáticamente al elegir el servicio.",
     )
+    # Duración en horas decimales (0.5 = 30 min, 1.5 = 1h 30min…)
     duration = fields.Float(
         string="Duración (horas)",
         help="Se rellena automáticamente al elegir el servicio.",
@@ -386,6 +480,14 @@ class StylehubAppointmentLine(models.Model):
     # -------------------------------------------------------------------------
     @api.onchange('service_id')
     def _onchange_service_id(self):
+        """
+        Se ejecuta en tiempo real en el navegador (sin guardar en BBDD)
+        cuando el usuario selecciona o cambia el servicio en una línea.
+
+        Rellena automáticamente price_unit y duration con los valores del
+        servicio elegido. El usuario puede cambiarlos manualmente después.
+        Si se borra el servicio, los campos vuelven a cero.
+        """
         if self.service_id:
             self.price_unit = self.service_id.price
             self.duration = self.service_id.duration
@@ -394,7 +496,7 @@ class StylehubAppointmentLine(models.Model):
             self.duration = 0.0
 
     # -------------------------------------------------------------------------
-    # Constraints
+    # Constraints SQL: validación a nivel de base de datos
     # -------------------------------------------------------------------------
     _check_line_price = models.Constraint(
         'CHECK(price_unit >= 0)',

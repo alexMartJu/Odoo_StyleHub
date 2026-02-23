@@ -1,5 +1,23 @@
 # -*- coding: utf-8 -*-
 
+# =============================================================================
+# MODELO: stylehub.schedule — Configuración de Horario de la Peluquería
+# =============================================================================
+# Almacena el único horario comercial de StyleHub.
+#
+# DISEÑO SINGLETON: solo puede existir UN registro de horario al mismo tiempo.
+# La lógica en create() y unlink() lo garantiza.
+#
+# PROTECCIÓN DE EDICIÓN: mientras haya citas activas (Borrador o Confirmada)
+# no se permite modificar el horario, ya que esas citas fueron validadas
+# con el horario anterior y podrían quedar fuera de rango si se cambia.
+#
+# ESTRUCTURA DE TURNOS:
+#   • Lunes – Viernes: turno de mañana + turno de tarde (ambos obligatorios).
+#   • Sábado          : opcional; puede tener solo mañana o mañana + tarde.
+#   • Domingo         : siempre cerrado (no hay campos para él).
+# =============================================================================
+
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
@@ -15,6 +33,7 @@ class StylehubSchedule(models.Model):
     _name = "stylehub.schedule"
     _description = "Configuración de Horario de la Peluquería"
 
+    # Nombre descriptivo del horario (campo obligatorio por convención de Odoo)
     name = fields.Char(
         string="Nombre del Horario",
         required=True,
@@ -24,6 +43,8 @@ class StylehubSchedule(models.Model):
     # -------------------------------------------------------------------------
     # Lunes a Viernes (mismo horario para todos los días laborables)
     # -------------------------------------------------------------------------
+    # Los horarios se guardan como número decimal de horas.
+    # Ejemplo: 9.5 = 09:30, 13.5 = 13:30, 20.5 = 20:30
     weekday_morning_open = fields.Float(
         string="Apertura mañana (L-V)",
         required=True,
@@ -56,6 +77,8 @@ class StylehubSchedule(models.Model):
     # -------------------------------------------------------------------------
     # Sábado
     # -------------------------------------------------------------------------
+    # El sábado es opcional: si 'saturday_active' = False, no se validan
+    # ni se muestran los campos de horario del sábado en el formulario.
     saturday_active = fields.Boolean(
         string="Abre el sábado",
         default=True,
@@ -76,6 +99,7 @@ class StylehubSchedule(models.Model):
     saturday_afternoon_active = fields.Boolean(
         string="Turno de tarde (Sáb)",
         default=False,
+        # El sábado puede tener turno de tarde o no (muchas peluquerías solo abren mañana)
         help="Marcar si la peluquería también tiene turno de tarde los sábados.",
     )
     saturday_afternoon_open = fields.Float(
@@ -99,6 +123,8 @@ class StylehubSchedule(models.Model):
     # -------------------------------------------------------------------------
     # Campo computado: alerta de citas activas
     # -------------------------------------------------------------------------
+    # Este campo se usa en la vista para mostrar una advertencia al usuario
+    # informándole de que no puede editar el horario mientras haya citas activas.
     has_active_appointments = fields.Boolean(
         string="Tiene citas activas",
         compute="_compute_has_active_appointments",
@@ -108,6 +134,11 @@ class StylehubSchedule(models.Model):
 
     @api.depends()
     def _compute_has_active_appointments(self):
+        """
+        Comprueba si existe alguna cita activa en el sistema.
+        Al no depender de ningún campo específico (depends vacío),
+        se recalcula cada vez que se accede al formulario de horario.
+        """
         Appointment = self.env['stylehub.appointment']
         active_count = Appointment.search_count([
             ('state', 'in', ['draft', 'confirmed']),
@@ -116,10 +147,16 @@ class StylehubSchedule(models.Model):
             rec.has_active_appointments = active_count > 0
 
     # -------------------------------------------------------------------------
-    # Singleton: solo puede existir 1 registro de horario
+    # Patrón Singleton: solo puede existir 1 registro de horario
     # -------------------------------------------------------------------------
     @api.model_create_multi
     def create(self, vals_list):
+        """
+        Sobreescritura de create() para implementar el patrón singleton.
+        Si ya existe un registro de horario, se bloquea la creación de otro.
+        El decorador @api.model_create_multi es necesario en Odoo 17+ porque
+        create() puede recibir una lista de diccionarios en lugar de uno solo.
+        """
         if self.search_count([]) > 0:
             raise UserError(
                 "Ya existe una configuración de horario.\n"
@@ -129,6 +166,11 @@ class StylehubSchedule(models.Model):
         return super().create(vals_list)
 
     def unlink(self):
+        """
+        Impide eliminar el registro de horario.
+        Eliminar el horario dejaría el sistema sin reglas de validación
+        y bloquearía la creación de cualquier cita nueva.
+        """
         raise UserError(
             "No está permitido eliminar la configuración de horario.\n"
             "Si necesitas cambiar los datos, edita el registro existente. "
@@ -137,6 +179,13 @@ class StylehubSchedule(models.Model):
         )
 
     def write(self, vals):
+        """
+        Impide modificar el horario mientras existan citas activas.
+
+        Motivo: si se cambia el horario con citas ya programadas,
+        esas citas podrían quedar fuera del nuevo rango horario,
+        generando inconsistencias en la agenda.
+        """
         Appointment = self.env['stylehub.appointment']
         active_count = Appointment.search_count([
             ('state', 'in', ['draft', 'confirmed']),
@@ -151,8 +200,12 @@ class StylehubSchedule(models.Model):
         return super().write(vals)
 
     # -------------------------------------------------------------------------
-    # Constraints de validación de horas
+    # Python Constraints: validación de coherencia de los rangos horarios
     # -------------------------------------------------------------------------
+    # Estas constraints se ejecutan en Python (servidor) y permiten mensajes
+    # de error más descriptivos que las SQL constraints.
+    # Se disparan automáticamente al guardar el registro si alguno de los
+    # campos listados en @api.constrains ha cambiado.
     @api.constrains(
         'weekday_morning_open', 'weekday_morning_close',
         'weekday_afternoon_open', 'weekday_afternoon_close',
@@ -197,6 +250,7 @@ class StylehubSchedule(models.Model):
                 )
 
             # ── Coherencia interna de los turnos (L-V) ───────────────────────
+            # Cada turno: la apertura debe ser ANTES del cierre
             if rec.weekday_morning_open >= rec.weekday_morning_close:
                 raise ValidationError(
                     "La apertura de mañana (L-V) debe ser anterior al cierre de mañana. "
@@ -213,6 +267,7 @@ class StylehubSchedule(models.Model):
                         _float_to_time_str(rec.weekday_afternoon_close),
                     )
                 )
+            # El turno de mañana debe terminar ANTES de que empiece el de tarde
             if rec.weekday_morning_close > rec.weekday_afternoon_open:
                 raise ValidationError(
                     "El turno de mañana (L-V) debe terminar antes de que empiece el de tarde. "
@@ -251,8 +306,10 @@ class StylehubSchedule(models.Model):
                         )
 
     # -------------------------------------------------------------------------
-    # SQL Constraints
+    # SQL Constraints: línea de defensa extra a nivel de base de datos
     # -------------------------------------------------------------------------
+    # Son más eficientes que las Python constraints para comprobaciones simples.
+    # Complementan (no sustituyen) a las Python constraints anteriores.
     _check_weekday_morning_open_min = models.Constraint(
         'CHECK(weekday_morning_open >= 8)',
         'La apertura de mañana (L-V) no puede ser antes de las 08:00.',
