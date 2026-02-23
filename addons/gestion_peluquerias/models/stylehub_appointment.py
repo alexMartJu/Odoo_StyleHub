@@ -26,6 +26,7 @@
 from datetime import timedelta
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools.float_utils import float_is_zero
 
 
 def _float_to_time_str(value):
@@ -221,7 +222,7 @@ class StylehubAppointment(models.Model):
                 ])
                 applies_discount = prior_done >= 5
 
-            if applies_discount:
+            if applies_discount and not float_is_zero(rec.total_amount, precision_digits=2):
                 rec.discount_amount = rec.total_amount * 0.05
             else:
                 rec.discount_amount = 0.0

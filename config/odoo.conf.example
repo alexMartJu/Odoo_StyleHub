@@ -15,4 +15,4 @@ workers = 0
 http_port = 8069
 
 # La contraseña maestra se generará automáticamente
-# admin_passwd =
+# admin_passwd = admin
